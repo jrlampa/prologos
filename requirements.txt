@@ -1,0 +1,14 @@
+fastapi>=0.95.2
+uvicorn[standard]>=0.22.0
+sqlalchemy>=2.0.18
+requests>=2.31.0
+streamlit>=1.25.0
+pandas>=2.1.0
+plotly>=5.15.0
+pypdf>=3.10.0
+sentence-transformers>=2.2.2
+torch>=2.2.1
+numpy>=1.27.0
+groq>=0.1.6
+pydantic>=2.2.0
+python-dotenv>=1.0.0

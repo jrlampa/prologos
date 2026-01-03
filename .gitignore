@@ -1,0 +1,17 @@
+.env
+.env.local
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.sqlite
+*.db
+*.log
+.streamlit/
+.ipynb_checkpoints/
+.DS_Store
+pip-wheel-metadata/
+pytest_cache/
+*.pytest_cache
+.terraform/
+
