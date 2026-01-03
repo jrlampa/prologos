@@ -14,7 +14,9 @@ from sqlalchemy.orm import Session
 
 # --- SEUS MÓDULOS LOCAIS ---
 import ingestor_datajud
-from database_models import SessionLocal, Decisao, Juiz, Tribunal
+
+# Importamos Base e engine para criar o banco se ele não existir
+from database_models import SessionLocal, Decisao, Juiz, Tribunal, Base, engine
 
 # Carrega .env (se existir) e expõe GROQ_API_KEY
 load_dotenv()
@@ -24,6 +26,10 @@ try:
     from groq import Groq
 except ImportError:
     Groq = None
+
+# --- INICIALIZAÇÃO DO BANCO (CRÍTICO PARA DEPLOY) ---
+# Cria as tabelas vazias se o arquivo .db não existir
+Base.metadata.create_all(bind=engine)
 
 
 # --- FUNÇÕES UTILITÁRIAS (GROQ) ---
@@ -61,29 +67,39 @@ def _discover_groq_models(client, prefer_prefixes=("llama3", "llama")):
 st.set_page_config(page_title="PRÓLOGOS | Jurimetria", page_icon="⚖️", layout="wide")
 
 
-# --- FUNÇÕES DE DADOS ---
+# --- CARREGAMENTO DE DADOS BLINDADO ---
 def carregar_dados():
     session = SessionLocal()
-    query = (
-        session.query(
-            Decisao.numero_processo,
-            Decisao.tema,
-            Decisao.resultado,
-            Decisao.data_decisao,
-            Juiz.nome.label("juiz_nome"),
-            Juiz.vara,
+    try:
+        query = (
+            session.query(
+                Decisao.numero_processo,
+                Decisao.tema,
+                Decisao.resultado,
+                Decisao.data_decisao,
+                Juiz.nome.label("juiz_nome"),
+                Juiz.vara,
+            )
+            .join(Juiz, Decisao.juiz_id == Juiz.id)
+            .all()
         )
-        .join(Juiz, Decisao.juiz_id == Juiz.id)
-        .all()
-    )
-    session.close()
 
-    if not query:
-        return pd.DataFrame()
+        # Definição das colunas padrão
+        colunas = ["Processo", "Tema", "Resultado/Risco", "Data", "Juiz", "Vara"]
 
-    return pd.DataFrame(
-        query, columns=["Processo", "Tema", "Resultado/Risco", "Data", "Juiz", "Vara"]
-    )
+        if not query:
+            # Retorna DataFrame vazio MAS com as colunas definidas
+            return pd.DataFrame(columns=colunas)
+
+        return pd.DataFrame(query, columns=colunas)
+
+    except Exception as e:
+        # Em caso de erro de conexão ou tabela inexistente
+        return pd.DataFrame(
+            columns=["Processo", "Tema", "Resultado/Risco", "Data", "Juiz", "Vara"]
+        )
+    finally:
+        session.close()
 
 
 @st.cache_resource
