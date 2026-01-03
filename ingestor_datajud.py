@@ -34,9 +34,9 @@ def detectar_tribunal(numero_processo):
         )
     # Adicionar outros tribunais conforme necessidade
     return (
-        "https://api-publica.datajud.cnj.jus.br/api_publica_tjsp/_search",
-        "TJSP",
-        "SP",
+        "https://api-publica.datajud.cnj.jus.br/api_publica_tjrj/_search",
+        "TJRJ",
+        "RJ",
     )  # Fallback
 
 

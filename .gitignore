@@ -5,7 +5,7 @@ venv/
 __pycache__/
 *.pyc
 *.sqlite
-*.db
+# *.db
 *.log
 .streamlit/
 .ipynb_checkpoints/
