@@ -4,11 +4,21 @@ from sqlalchemy.orm import Session
 from database_models import SessionLocal, Tribunal, Juiz, Decisao, Base, engine
 from datetime import datetime
 import re
+import os
+from dotenv import load_dotenv
 
-# Headers da API
+# Carrega as variáveis de ambiente do ficheiro .env
+load_dotenv()
+
+# Headers da API com chave lida do ambiente
+api_key = os.getenv("DATAJUD_API_KEY")
+
+if not api_key:
+    print("⚠️ AVISO: A variável de ambiente DATAJUD_API_KEY não foi definida. As requisições à API falharão.")
+
 HEADERS = {
     "Content-Type": "application/json",
-    "Authorization": "APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==",
+    "Authorization": f"APIKey {api_key}",
 }
 
 
