@@ -11,9 +11,9 @@ import io
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-from database_models import SessionLocal, Decisao, Juiz, Tribunal
-import schemas
-import ingestor_datajud
+from backend.database_models import SessionLocal, Decisao, Juiz, Tribunal, Base, engine
+from backend import schemas
+from backend import ingestor_datajud
 from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer, util
 import numpy as np
@@ -37,12 +37,14 @@ def get_db():
 @app.on_event("startup")
 def startup_event():
     global modelo_ia
+    # Garante que as tabelas existam (baseline estável independente do CWD)
+    Base.metadata.create_all(bind=engine)
     modelo_ia = SentenceTransformer("all-MiniLM-L6-v2")
 
 @app.get("/")
 def home(): return {"msg": "API Prólogos Online"}
 
-@app.post("/api/clonar-juiz", response_model=schemas.JuizBase)
+@app.post("/api/clonar-juiz", response_model=schemas.Juiz)
 
 def clonar_juiz_endpoint(request: ClonarRequest, db: Session = Depends(get_db)):
     resultado = ingestor_datajud.clonar_perfil_juiz(request.numero_processo)
@@ -98,4 +100,4 @@ async def analisar_peticao(juiz_id: int, file: UploadFile = File(...), db: Sessi
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("backend.main:app", host="127.0.0.1", port=8000, reload=True)

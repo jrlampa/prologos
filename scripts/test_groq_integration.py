@@ -9,7 +9,7 @@ import numpy as np
 
 # Try to import DB models; if unavailable, we'll use fallback themes
 try:
-    from database_models import SessionLocal, Decisao, Juiz
+    from backend.database_models import SessionLocal, Decisao, Juiz
 except Exception:
     SessionLocal = None
     Decisao = None

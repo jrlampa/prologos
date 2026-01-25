@@ -1,26 +1,47 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useCallback, useEffect, useState } from 'react';
 import Dashboard from './components/Dashboard';
 import Simulador from './components/Simulador';
-
-const API_URL = 'http://127.0.0.1:8000/api';
+import { api } from './services/api';
 
 function App() {
     const [juizes, setJuizes] = useState([]);
     const [selectedJuiz, setSelectedJuiz] = useState('');
     const [juizStats, setJuizStats] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [dossie, setDossie] = useState('');
+    const [dossieLoading, setDossieLoading] = useState(false);
+    const [dossieError, setDossieError] = useState('');
 
     useEffect(() => {
-        axios.get(`${API_URL}/juizes`).then(res => setJuizes(res.data));
+        api.get('/juizes').then(res => setJuizes(res.data));
     }, []);
 
     useEffect(() => {
         if (selectedJuiz) {
             setLoading(true);
-            axios.get(`${API_URL}/juiz/${selectedJuiz}/stats`)
+            setDossie('');
+            setDossieError('');
+            api.get(`/juiz/${selectedJuiz}/stats`)
                 .then(res => setJuizStats(res.data))
                 .finally(() => setLoading(false));
+        } else {
+            setJuizStats(null);
+            setDossie('');
+            setDossieError('');
+        }
+    }, [selectedJuiz]);
+
+    const handleGerarDossie = useCallback(async () => {
+        if (!selectedJuiz) return;
+        setDossieLoading(true);
+        setDossieError('');
+        try {
+            const res = await api.post(`/juiz/${selectedJuiz}/dossie`);
+            setDossie(res.data?.dossie || '');
+        } catch (e) {
+            setDossieError(e?.response?.data?.detail || e?.message || 'Falha ao gerar dossiê.');
+        } finally {
+            setDossieLoading(false);
         }
     }, [selectedJuiz]);
 
@@ -51,8 +72,14 @@ function App() {
 
                 {juizStats && (
                     <div className='grid grid-cols-1 md:grid-cols-2 gap-8'>
-                        <Dashboard stats={juizStats} />
-                        <Simulador juizId={selectedJuiz} />
+                        <Dashboard
+                            stats={juizStats}
+                            dossie={dossie}
+                            dossieLoading={dossieLoading}
+                            dossieError={dossieError}
+                            onGerarDossie={handleGerarDossie}
+                        />
+                        <Simulador juizId={selectedJuiz} dossie={dossie} />
                     </div>
                 )}
             </div>

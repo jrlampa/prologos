@@ -1,7 +1,7 @@
 import requests
 import json
 from sqlalchemy.orm import Session
-from database_models import SessionLocal, Tribunal, Juiz, Decisao
+from backend.database_models import SessionLocal, Tribunal, Juiz, Decisao
 from datetime import datetime
 import re
 import os

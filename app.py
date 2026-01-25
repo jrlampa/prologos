@@ -13,10 +13,10 @@ from pypdf import PdfReader
 from sqlalchemy.orm import Session
 
 # --- SEUS MÓDULOS LOCAIS ---
-import ingestor_datajud
+from backend import ingestor_datajud
 
 # Importamos Base e engine para criar o banco se ele não existir
-from database_models import SessionLocal, Decisao, Juiz, Tribunal, Base, engine
+from backend.database_models import SessionLocal, Decisao, Juiz, Tribunal, Base, engine
 
 # Carrega .env (se existir) e expõe GROQ_API_KEY
 load_dotenv()

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import { api } from '../services/api';
 
-const API_URL = 'http://127.0.0.1:8000/api';
-
-const Simulador = ({ juizId }) => {
+const Simulador = ({ juizId, dossie }) => {
     const [file, setFile] = useState(null);
     const [analise, setAnalise] = useState('');
     const [loading, setLoading] = useState(false);
+    const [parecer, setParecer] = useState('');
+    const [parecerLoading, setParecerLoading] = useState(false);
+    const [parecerError, setParecerError] = useState('');
 
     const handleFileChange = (e) => {
         setFile(e.target.files[0]);
@@ -19,7 +20,8 @@ const Simulador = ({ juizId }) => {
         formData.append('file', file);
 
         setLoading(true);
-        axios.post(`${API_URL}/analise/peticao?juiz_id=${juizId}`, formData, {
+        api.post('/analise/peticao', formData, {
+            params: { juiz_id: juizId },
             headers: {
                 'Content-Type': 'multipart/form-data'
             }
@@ -27,6 +29,26 @@ const Simulador = ({ juizId }) => {
         .then(res => setAnalise(res.data.parecer))
         .catch(err => console.error(err))
         .finally(() => setLoading(false));
+    };
+
+    const handleParecer = () => {
+        if (!file || !juizId) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+        if (dossie) formData.append('dossie', dossie);
+
+        setParecerLoading(true);
+        setParecerError('');
+        api.post('/analise/peticao/parecer', formData, {
+            params: { juiz_id: juizId },
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        })
+        .then(res => setParecer(res.data.parecer))
+        .catch(err => setParecerError(err?.response?.data?.detail || err?.message || 'Falha ao gerar parecer.'))
+        .finally(() => setParecerLoading(false));
     };
 
     return (
@@ -51,6 +73,34 @@ const Simulador = ({ juizId }) => {
                         <pre className="whitespace-pre-wrap text-sm">{analise}</pre>
                     </div>
                 )}
+
+                <div className="pt-4 border-t border-gray-700">
+                    <h3 className="text-xl font-bold mb-2">Consultor Jurídico IA (Groq)</h3>
+                    <p className="text-sm text-gray-300 mb-3">
+                        Gera um parecer estratégico (opcionalmente usando o dossiê do juiz).
+                    </p>
+
+                    <button
+                        onClick={handleParecer}
+                        disabled={!file || parecerLoading}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-500 text-white font-bold py-2 px-4 rounded"
+                    >
+                        {parecerLoading ? 'Gerando parecer...' : 'Gerar Parecer Estratégico'}
+                    </button>
+
+                    {parecerError && (
+                        <div className="mt-4 bg-red-900/40 border border-red-800 p-3 rounded">
+                            <p className="text-sm text-red-200">{parecerError}</p>
+                        </div>
+                    )}
+
+                    {parecer && (
+                        <div className="mt-4 bg-gray-700 p-4 rounded">
+                            <h3 className="font-bold mb-2">Parecer:</h3>
+                            <pre className="whitespace-pre-wrap text-sm">{parecer}</pre>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

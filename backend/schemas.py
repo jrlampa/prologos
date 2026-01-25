@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import date
 from typing import Optional, List
 
@@ -9,11 +9,10 @@ class JuizBase(BaseModel):
     vara: str
 
 
-class JuizResponse(JuizBase):
+class Juiz(JuizBase):
     id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Schema base para Decisao
@@ -25,10 +24,9 @@ class DecisaoBase(BaseModel):
     data_decisao: Optional[date] = None
 
 
-class DecisaoResponse(DecisaoBase):
+class Decisao(DecisaoBase):
     id: int
     juiz_id: int
     # Aqui poderiamos aninhar o objeto Juiz, mas vamos manter simples por agora
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

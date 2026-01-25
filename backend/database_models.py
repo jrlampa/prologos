@@ -1,12 +1,18 @@
+import os
+from pathlib import Path
+from datetime import date
+
 # Importamos as ferramentas necessárias do SQLAlchemy
 from sqlalchemy import create_engine, Column, Integer, String, Text, ForeignKey, Date
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
-from datetime import date
 
 # 1. Configuração do Banco de Dados
-# Para este teste, usamos SQLite (um ficheiro local).
-# Para mudar para PostgreSQL no futuro, basta alterar esta linha de conexão.
-DATABASE_URL = "sqlite:///./prologos_mvp.db"
+#
+# Importante: o caminho relativo `./prologos_mvp.db` varia conforme o diretório de execução.
+# Para estabilizar o baseline, usamos por padrão o DB ao lado deste arquivo (`backend/prologos_mvp.db`),
+# mas permitimos sobrescrever via `DATABASE_URL`.
+DEFAULT_DB_PATH = (Path(__file__).resolve().parent / "prologos_mvp.db").as_posix()
+DATABASE_URL = os.getenv("DATABASE_URL") or f"sqlite:///{DEFAULT_DB_PATH}"
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
