@@ -1,6 +1,16 @@
 import React from 'react';
+import TermsAcceptanceGate from './TermsAcceptanceGate';
 
-const Dashboard = ({ stats, dossie, dossieLoading, dossieError, onGerarDossie }) => {
+const Dashboard = ({
+    stats,
+    dossie,
+    dossieLoading,
+    dossieError,
+    onGerarDossie,
+    termsAccepted,
+    onToggleTermsAccepted,
+    onOpenTerms,
+}) => {
     if (!stats) return null;
 
     return (
@@ -18,9 +28,16 @@ const Dashboard = ({ stats, dossie, dossieLoading, dossieError, onGerarDossie })
                     Gere um perfil comportamental do magistrado com base nos padrões de decisões armazenados.
                 </p>
 
+                <TermsAcceptanceGate
+                    accepted={termsAccepted}
+                    onChange={onToggleTermsAccepted}
+                    onOpenTerms={onOpenTerms}
+                    helperText="Para gerar o dossiê com IA, confirme o aceite dos Termos de Uso."
+                />
+
                 <button
                     onClick={onGerarDossie}
-                    disabled={dossieLoading}
+                    disabled={!termsAccepted || dossieLoading}
                     className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-500 text-white font-bold py-2 px-4 rounded"
                 >
                     {dossieLoading ? 'Gerando dossiê...' : 'Gerar Dossiê do Magistrado'}

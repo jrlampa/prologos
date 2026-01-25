@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
 import { api } from '../services/api';
+import TermsAcceptanceGate from './TermsAcceptanceGate';
 
-const Simulador = ({ juizId, dossie }) => {
+const Simulador = ({
+    juizId,
+    dossie,
+    termsAccepted,
+    onToggleTermsAccepted,
+    onOpenTerms,
+}) => {
     const [file, setFile] = useState(null);
     const [analise, setAnalise] = useState('');
     const [loading, setLoading] = useState(false);
@@ -15,6 +22,10 @@ const Simulador = ({ juizId, dossie }) => {
 
     const handleAnalisar = () => {
         if (!file || !juizId) return;
+        if (!termsAccepted) {
+            onOpenTerms?.();
+            return;
+        }
 
         const formData = new FormData();
         formData.append('file', file);
@@ -33,6 +44,10 @@ const Simulador = ({ juizId, dossie }) => {
 
     const handleParecer = () => {
         if (!file || !juizId) return;
+        if (!termsAccepted) {
+            onOpenTerms?.();
+            return;
+        }
 
         const formData = new FormData();
         formData.append('file', file);
@@ -59,9 +74,17 @@ const Simulador = ({ juizId, dossie }) => {
                     <label htmlFor="peticao-upload" className="block mb-2 text-sm font-medium">Upload da Petição (PDF):</label>
                     <input type="file" id="peticao-upload" onChange={handleFileChange} className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
                 </div>
+
+                <TermsAcceptanceGate
+                    accepted={termsAccepted}
+                    onChange={onToggleTermsAccepted}
+                    onOpenTerms={onOpenTerms}
+                    helperText="Para usar análises automatizadas/IA, confirme o aceite dos Termos de Uso."
+                />
+
                 <button 
                     onClick={handleAnalisar} 
-                    disabled={!file || loading}
+                    disabled={!file || loading || !termsAccepted}
                     className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 text-white font-bold py-2 px-4 rounded"
                 >
                     {loading ? 'Analisando...' : 'Analisar Afinidade'}
@@ -82,7 +105,7 @@ const Simulador = ({ juizId, dossie }) => {
 
                     <button
                         onClick={handleParecer}
-                        disabled={!file || parecerLoading}
+                        disabled={!file || parecerLoading || !termsAccepted}
                         className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-500 text-white font-bold py-2 px-4 rounded"
                     >
                         {parecerLoading ? 'Gerando parecer...' : 'Gerar Parecer Estratégico'}

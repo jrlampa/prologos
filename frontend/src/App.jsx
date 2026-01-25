@@ -1,7 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Dashboard from './components/Dashboard';
 import Simulador from './components/Simulador';
+import LegalDisclaimer from './components/LegalDisclaimer';
+import TermsModal from './components/TermsModal';
 import { api } from './services/api';
+
+const TERMS_ACCEPTED_KEY = 'prologos_terms_accepted_v1';
 
 function App() {
     const [juizes, setJuizes] = useState([]);
@@ -11,9 +15,20 @@ function App() {
     const [dossie, setDossie] = useState('');
     const [dossieLoading, setDossieLoading] = useState(false);
     const [dossieError, setDossieError] = useState('');
+    const [termsAccepted, setTermsAccepted] = useState(false);
+    const [termsOpen, setTermsOpen] = useState(false);
 
     useEffect(() => {
         api.get('/juizes').then(res => setJuizes(res.data));
+    }, []);
+
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem(TERMS_ACCEPTED_KEY);
+            setTermsAccepted(stored === 'true');
+        } catch {
+            // no-op (ex.: localStorage indisponível)
+        }
     }, []);
 
     useEffect(() => {
@@ -33,6 +48,10 @@ function App() {
 
     const handleGerarDossie = useCallback(async () => {
         if (!selectedJuiz) return;
+        if (!termsAccepted) {
+            setTermsOpen(true);
+            return;
+        }
         setDossieLoading(true);
         setDossieError('');
         try {
@@ -43,7 +62,16 @@ function App() {
         } finally {
             setDossieLoading(false);
         }
-    }, [selectedJuiz]);
+    }, [selectedJuiz, termsAccepted]);
+
+    const handleToggleTermsAccepted = useCallback((next) => {
+        setTermsAccepted(!!next);
+        try {
+            localStorage.setItem(TERMS_ACCEPTED_KEY, next ? 'true' : 'false');
+        } catch {
+            // no-op
+        }
+    }, []);
 
     return (
         <div className="bg-gray-900 text-white min-h-screen p-8">
@@ -53,6 +81,12 @@ function App() {
             </header>
 
             <div className="max-w-4xl mx-auto">
+                <LegalDisclaimer
+                    accepted={termsAccepted}
+                    onToggleAccepted={handleToggleTermsAccepted}
+                    onOpenTerms={() => setTermsOpen(true)}
+                />
+
                 <div className="bg-gray-800 p-4 rounded-lg mb-6">
                     <label htmlFor="juiz-select" className="block mb-2 text-sm font-medium">Selecione o Juiz para Análise:</label>
                     <select 
@@ -78,11 +112,22 @@ function App() {
                             dossieLoading={dossieLoading}
                             dossieError={dossieError}
                             onGerarDossie={handleGerarDossie}
+                            termsAccepted={termsAccepted}
+                            onToggleTermsAccepted={handleToggleTermsAccepted}
+                            onOpenTerms={() => setTermsOpen(true)}
                         />
-                        <Simulador juizId={selectedJuiz} dossie={dossie} />
+                        <Simulador
+                            juizId={selectedJuiz}
+                            dossie={dossie}
+                            termsAccepted={termsAccepted}
+                            onToggleTermsAccepted={handleToggleTermsAccepted}
+                            onOpenTerms={() => setTermsOpen(true)}
+                        />
                     </div>
                 )}
             </div>
+
+            <TermsModal isOpen={termsOpen} onClose={() => setTermsOpen(false)} />
         </div>
     );
 }
