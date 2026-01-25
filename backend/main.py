@@ -1,27 +1,44 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Any, List, Optional
 import uvicorn
 import os
+import logging
 from dotenv import load_dotenv
 from pydantic import BaseModel
 import io
-import threading
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
+
+from rq.exceptions import NoSuchJobError
+from rq.job import Job
 
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+logger = logging.getLogger("prologos.fastapi")
+
 from backend.database_models import SessionLocal, Decisao, Juiz, Tribunal, Base, engine
 from backend import schemas
 from backend import ingestor_datajud
+from backend.queue import get_queue, get_redis
+from backend.tasks import clone_juiz_datajud_task
 from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer, util
 import numpy as np
 
 app = FastAPI(title="API PRÓLOGOS", version="1.0.0")
+
+AUTO_CREATE_DB = os.getenv("AUTO_CREATE_DB", "true").lower() in ("1", "true", "yes", "y")
+PYTHON_DB_WRITES_ENABLED = os.getenv("PYTHON_DB_WRITES_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+    "y",
+)
+PDF_MAX_SIZE_BYTES = int(os.getenv("PDF_MAX_SIZE_BYTES", str(10 * 1024 * 1024)))
 
 app.add_middleware(
     CORSMiddleware,
@@ -46,6 +63,7 @@ class JobStatusResponse(BaseModel):
     error: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    result: Optional[Any] = None
 
 def get_db():
     db = SessionLocal()
@@ -55,8 +73,10 @@ def get_db():
 @app.on_event("startup")
 def startup_event():
     global modelo_ia
-    # Garante que as tabelas existam (baseline estável independente do CWD)
-    Base.metadata.create_all(bind=engine)
+    # Em prod com SQLite, preferimos evitar writes aqui (single-writer).
+    # Use migrations/bootstrapping fora do processo, ou habilite via env.
+    if AUTO_CREATE_DB:
+        Base.metadata.create_all(bind=engine)
     modelo_ia = SentenceTransformer("all-MiniLM-L6-v2")
 
 @app.get("/")
@@ -65,6 +85,11 @@ def home(): return {"msg": "API Prólogos Online"}
 @app.post("/api/clonar-juiz", response_model=schemas.Juiz)
 
 def clonar_juiz_endpoint(request: ClonarRequest, db: Session = Depends(get_db)):
+    if not PYTHON_DB_WRITES_ENABLED:
+        raise HTTPException(
+            status_code=403,
+            detail="Escrita no banco pelo serviço Python está desabilitada (single-writer). Use /api/clonar-juiz/async via Express.",
+        )
     resultado = ingestor_datajud.clonar_perfil_juiz(request.numero_processo)
     if not resultado["sucesso"]:
         raise HTTPException(status_code=400, detail=resultado["msg"])
@@ -75,73 +100,93 @@ def clonar_juiz_endpoint(request: ClonarRequest, db: Session = Depends(get_db)):
 # Jobs (clonagem assíncrona)
 # -----------------------------
 
-_jobs_lock = threading.Lock()
-_jobs: dict = {}
+JOB_TIMEOUT_SECONDS = int(os.getenv("CLONE_JOB_TIMEOUT_SECONDS", "600"))
+JOB_RESULT_TTL_SECONDS = int(os.getenv("CLONE_JOB_RESULT_TTL_SECONDS", str(60 * 60)))
+JOB_FAILURE_TTL_SECONDS = int(os.getenv("CLONE_JOB_FAILURE_TTL_SECONDS", str(24 * 60 * 60)))
 
-def _iso_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
-def _update_job(job_id: str, **fields):
-    with _jobs_lock:
-        job = _jobs.get(job_id)
-        if not job:
-            return
-        job.update(fields)
-        job["updated_at"] = _iso_now()
+def _iso(dt: Optional[datetime]) -> Optional[str]:
+    return dt.isoformat() if isinstance(dt, datetime) else None
 
-def _create_job(numero_processo: str) -> str:
-    job_id = uuid.uuid4().hex
-    with _jobs_lock:
-        _jobs[job_id] = {
-            "jobId": job_id,
-            "status": "queued",
-            "progress": 0,
-            "message": "Aguardando execução…",
-            "numero_processo": numero_processo,
-            "juiz_id": None,
-            "error": None,
-            "created_at": _iso_now(),
-            "updated_at": _iso_now(),
-        }
-    return job_id
 
-def _run_clone_job(job_id: str, numero_processo: str):
-    try:
-        _update_job(job_id, status="running", progress=1, message="Iniciando clonagem…", error=None)
-
-        def cb(pct: int, msg: str):
-            pct_norm = max(0, min(100, int(pct)))
-            _update_job(job_id, progress=pct_norm, message=str(msg or ""))
-
-        resultado = ingestor_datajud.clonar_perfil_juiz(numero_processo, progress_cb=cb)
-        if not resultado.get("sucesso"):
-            raise RuntimeError(resultado.get("msg") or "Falha na clonagem.")
-
-        _update_job(
-            job_id,
-            status="succeeded",
-            progress=100,
-            message=resultado.get("msg") or "Concluído.",
-            juiz_id=int(resultado.get("juiz_id")) if resultado.get("juiz_id") else None,
-        )
-    except Exception as e:
-        _update_job(job_id, status="failed", message="Falha na clonagem.", error=str(e))
+def _map_rq_status(status: str) -> str:
+    # RQ: queued/started/finished/failed/deferred/scheduled
+    return {
+        "queued": "queued",
+        "deferred": "queued",
+        "scheduled": "queued",
+        "started": "running",
+        "finished": "succeeded",
+        "failed": "failed",
+    }.get(status or "", status or "unknown")
 
 @app.post("/api/clonar-juiz/async", status_code=202, response_model=CloneJobResponse)
 def clonar_juiz_async_endpoint(request: ClonarRequest):
-    job_id = _create_job(request.numero_processo)
-    t = threading.Thread(target=_run_clone_job, args=(job_id, request.numero_processo), daemon=True)
-    t.start()
-    return {"jobId": job_id, "status": "queued"}
+    q = get_queue()
+    job_id = uuid.uuid4().hex
+    logger.info("enqueue_clone_job jobId=%s", job_id)
+    job = q.enqueue(
+        clone_juiz_datajud_task,
+        request.numero_processo,
+        job_id=job_id,
+        job_timeout=JOB_TIMEOUT_SECONDS,
+        result_ttl=JOB_RESULT_TTL_SECONDS,
+        failure_ttl=JOB_FAILURE_TTL_SECONDS,
+    )
+    return {"jobId": job.id, "status": _map_rq_status(job.get_status())}
 
 @app.get("/api/jobs/{job_id}", response_model=JobStatusResponse)
 def get_job_status(job_id: str):
-    with _jobs_lock:
-        job = _jobs.get(job_id)
-        if not job:
-            raise HTTPException(status_code=404, detail="Job não encontrado.")
-        # retorna cópia para não expor mutação concorrente
-        return dict(job)
+    conn = get_redis()
+    try:
+        job = Job.fetch(job_id, connection=conn)
+    except NoSuchJobError:
+        raise HTTPException(status_code=404, detail="Job não encontrado.")
+
+    rq_status = job.get_status()
+    status = _map_rq_status(rq_status)
+    progress = int(job.meta.get("progress") or 0)
+    message = str(job.meta.get("message") or "")
+
+    numero_processo = None
+    try:
+        if job.args:
+            numero_processo = str(job.args[0])
+    except Exception:
+        numero_processo = None
+
+    error = None
+    if status == "failed":
+        # Evita retornar stack enorme; expõe uma mensagem curta
+        exc = (job.exc_info or "").strip().splitlines()
+        if exc:
+            error = exc[-1][:500]
+        else:
+            error = "Falha no job."
+
+    created_at = _iso(job.enqueued_at)
+    updated_at = _iso(job.ended_at or job.started_at or job.enqueued_at)
+
+    result: Optional[Any] = None
+    if status == "succeeded":
+        # Resultado do job (payload para persistência no Express)
+        result = job.result
+        logger.info("job_succeeded jobId=%s", job.id)
+    elif status == "failed":
+        logger.warning("job_failed jobId=%s", job.id)
+
+    return {
+        "jobId": job.id,
+        "status": status,
+        "progress": max(0, min(100, progress)),
+        "message": message,
+        "numero_processo": numero_processo,
+        "juiz_id": None,  # definido no Express após persistência (single-writer)
+        "error": error,
+        "created_at": created_at,
+        "updated_at": updated_at,
+        "result": result,
+    }
 
 @app.get("/api/juizes", response_model=List[schemas.Juiz])
 
@@ -162,7 +207,11 @@ async def analisar_peticao(juiz_id: int, file: UploadFile = File(...), db: Sessi
     if not juiz or not juiz.decisoes:
         raise HTTPException(404, "Base de decisões do juiz está vazia.")
 
-    pdf_content = await file.read()
+    pdf_content = await file.read(PDF_MAX_SIZE_BYTES + 1)
+    if len(pdf_content) > PDF_MAX_SIZE_BYTES:
+        raise HTTPException(status_code=413, detail="Arquivo muito grande (limite excedido).")
+    if not pdf_content or len(pdf_content) < 5 or pdf_content[:5] != b"%PDF-":
+        raise HTTPException(status_code=400, detail="Arquivo enviado não parece ser um PDF válido.")
     texto_peticao = ""
     with io.BytesIO(pdf_content) as f:
         reader = PdfReader(f)

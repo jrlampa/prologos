@@ -13,6 +13,8 @@ coverage.xml
 .venv/
 venv/
 env/
+*.sqlite3
+backend/datajud_cache.sqlite3
 
 # Node / Frontend
 node_modules/

@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+requests
+python-dotenv
+pydantic
+pypdf
+sentence-transformers
+torch
+numpy
+redis
+rq
+

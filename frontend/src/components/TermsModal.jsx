@@ -93,6 +93,11 @@ export default function TermsModal({ isOpen, onClose, title = DEFAULT_TITLE }) {
                   documentos.
                 </li>
                 <li>
+                  Recursos de IA podem envolver o envio de partes do conteúdo a
+                  provedores externos (quando configurado). Consulte a política
+                  de privacidade do ambiente de hospedagem.
+                </li>
+                <li>
                   O sistema pode registrar eventos técnicos (ex.: erros, tempo
                   de resposta) para melhoria e segurança.
                 </li>

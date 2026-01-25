@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import { groqChatCompletion } from "../groq.js";
 import { extractPdfText } from "../pdf.js";
+import { fetchWithTimeout } from "../lib/fetch.js";
 import { requireJuizId } from "../lib/params.js";
 
 function assertPdfBuffer(buffer) {
@@ -32,6 +33,7 @@ export function createAnaliseRouter({ db, upload, groqApiKey, groqModel, fastapi
   }
 
   const router = Router();
+  const upstreamTimeoutMs = Number(process.env.UPSTREAM_TIMEOUT_MS || 120000);
 
   // Parecer estratégico (equivalente à Aba 2 do Streamlit) - Groq + PDF (+ dossiê opcional)
   router.post("/analise/peticao/parecer", upload.single("file"), async (req, res, next) => {
@@ -123,7 +125,15 @@ ${textoPeticao}
       );
 
       const url = `${fastapiBaseUrl}/api/analise/peticao?juiz_id=${encodeURIComponent(String(juizId))}`;
-      const r = await fetch(url, { method: "POST", body: form });
+      const r = await fetchWithTimeout(
+        url,
+        {
+          method: "POST",
+          headers: { "x-request-id": req.requestId || "" },
+          body: form,
+        },
+        upstreamTimeoutMs,
+      );
       const bodyText = await r.text();
       if (!r.ok) {
         return res.status(502).json({

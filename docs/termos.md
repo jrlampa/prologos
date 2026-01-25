@@ -24,6 +24,15 @@ Ao utilizar a Plataforma, você declara que:
 - **Dados enviados pelo usuário**: documentos e informações inseridos na Plataforma são processados para permitir as funcionalidades contratadas/solicitadas.
 - **Limitações**: resultados podem conter erros, vieses, lacunas, desatualizações e/ou interpretações incompletas. A Plataforma pode ficar indisponível ou limitada por fatores técnicos, incluindo limites de terceiros e políticas de rate limiting.
 
+### 3.1. Serviços de terceiros (subprocessadores)
+
+A Plataforma pode integrar serviços de terceiros para viabilizar funcionalidades, incluindo:
+
+- **Provedores de IA/LLM**: quando você utiliza recursos como “dossiê” e/ou “parecer”, partes do conteúdo (ex.: trechos de decisões, texto de petição, contexto informado) **podem ser enviados a um provedor externo** para geração da resposta (ex.: API da Groq, quando configurada).
+- **Bases públicas**: consultas ao **DataJud/CNJ** são feitas via API pública, respeitando limites e disponibilidade do serviço.
+
+Você declara ciência de que esses terceiros podem aplicar suas próprias políticas e limitações técnicas (ex.: rate limiting, indisponibilidade), o que pode impactar o serviço.
+
 ## 4. Uso aceitável
 
 Você se compromete a **não**:
@@ -49,6 +58,10 @@ As análises, “dossiês”, “pareceres” e demais saídas:
 - devem ser validadas por revisão humana antes de qualquer uso profissional;
 - podem variar com alterações de parâmetros, dados e/ou versões do modelo.
 
+### 6.1. Uso responsável e prazos processuais
+
+Você concorda em **não** usar as saídas como única fonte para decisões críticas (ex.: estratégias, prazos, recursos) sem validação humana, assumindo responsabilidade por revisar e conferir informações antes de uso profissional.
+
 ## 7. Suspensão e encerramento
 
 Podemos suspender ou encerrar o acesso à Plataforma caso identifiquemos uso indevido, riscos de segurança, obrigação legal ou indisponibilidade técnica.
@@ -68,7 +81,7 @@ Podemos atualizar estes Termos periodicamente. A data de “Última atualizaçã
 
 Para dúvidas, solicitações ou reclamações:
 
-- E-mail: `contato@exemplo.com`
+- Canal preferencial: [GitHub Issues](https://github.com/jrlampa/prologos/issues)
 
 ---
 

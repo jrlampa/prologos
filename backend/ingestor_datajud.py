@@ -303,6 +303,126 @@ def salvar_lote(lista_processos, nome_tribunal, estado_tribunal):
     session.close()
     return {"novos": novos, "com_teor": com_teor, "juiz_id": juiz_id_retorno}
 
+
+def montar_payload_lote(lista_processos, nome_tribunal: str, estado_tribunal: str):
+    """
+    Constrói um payload normalizado a partir do retorno do DataJud.
+    NÃO grava no banco do produto (usado para single-writer via Express).
+    """
+    novos, com_teor = 0, 0
+
+    nome_vara = "Vara Desconhecida"
+    if lista_processos:
+        source_ref = (lista_processos[0] or {}).get("_source") or {}
+        nome_vara = (source_ref.get("orgaoJulgador") or {}).get("nome") or nome_vara
+    nome_juiz = f"Juízo da {nome_vara}"
+
+    decisoes = []
+    seen = set()
+
+    for proc in lista_processos or []:
+        source = (proc or {}).get("_source") or {}
+        numero_processo = source.get("numeroProcesso")
+        if not numero_processo:
+            continue
+        if numero_processo in seen:
+            continue
+        seen.add(numero_processo)
+
+        teor = extrair_teor_decisao(source)
+        tema = (source.get("assuntos") or [{}])[0].get("nome") or "Geral"
+        texto_completo = f"Assunto: {tema}. {teor or ''}".strip()
+        if teor:
+            com_teor += 1
+
+        data_ajuizamento = source.get("dataAjuizamento")
+        data_decisao = data_ajuizamento.split("T")[0] if isinstance(data_ajuizamento, str) and "T" in data_ajuizamento else (
+            data_ajuizamento if isinstance(data_ajuizamento, str) else None
+        )
+
+        decisoes.append(
+            {
+                "numero_processo": numero_processo,
+                "texto_decisao": texto_completo,
+                "tema": tema,
+                "data_decisao": data_decisao,  # ISO date string (YYYY-MM-DD) quando disponível
+                "resultado": "Aguardando Análise",
+            }
+        )
+        novos += 1
+
+    return {
+        "tribunal": {"nome": nome_tribunal, "estado": estado_tribunal},
+        "juiz": {"nome": nome_juiz, "vara": nome_vara},
+        "decisoes": decisoes,
+        "stats": {"processos": novos, "com_teor": com_teor},
+    }
+
+
+def clonar_perfil_juiz_payload(
+    numero_processo_ref: str,
+    *,
+    progress_cb: Optional[Callable[[int, str], None]] = None,
+):
+    """
+    Clona (coleta) o perfil do juiz no DataJud e retorna um payload para persistência
+    no backend Node/Express (single-writer).
+    """
+    api_url, sigla_tribunal, estado = detectar_tribunal_inteligente(numero_processo_ref)
+    numero_limpo = re.sub(r"\D", "", str(numero_processo_ref or ""))
+    payload_ref = {"query": {"match": {"numeroProcesso": numero_limpo}}}
+    try:
+        if progress_cb:
+            progress_cb(10, "Buscando processo de referência no DataJud…")
+        hits = datajud_search(
+            api_url,
+            payload_ref,
+            cache_key=f"proc_ref:{sigla_tribunal}:{numero_limpo}",
+        ).get("hits", {}).get("hits", [])
+        if not hits:
+            return {"sucesso": False, "msg": "Processo não encontrado."}
+
+        processo_ref = hits[0]["_source"]
+        orgao_cod = (processo_ref.get("orgaoJulgador") or {}).get("codigo")
+        orgao_nome = (processo_ref.get("orgaoJulgador") or {}).get("nome")
+
+        if not orgao_cod:
+            return {"sucesso": False, "msg": "Processo encontrado, mas sem orgaoJulgador.codigo."}
+
+        if progress_cb:
+            progress_cb(45, "Buscando histórico do órgão julgador no DataJud…")
+        payload_hist = {
+            "size": 50,
+            "query": {"match": {"orgaoJulgador.codigo": orgao_cod}},
+            "sort": [{"dataAjuizamento": "desc"}],
+        }
+        hits_hist = datajud_search(
+            api_url,
+            payload_hist,
+            cache_key=f"hist_orgao:{sigla_tribunal}:{orgao_cod}:size=50",
+        ).get("hits", {}).get("hits", [])
+
+        if progress_cb:
+            progress_cb(80, "Normalizando payload…")
+
+        payload = montar_payload_lote(hits_hist, sigla_tribunal, estado)
+
+        if progress_cb:
+            progress_cb(100, "Concluído.")
+
+        return {
+            "sucesso": True,
+            "msg": f"{payload['stats']['processos']} processos coletados.",
+            "numero_processo_ref": numero_limpo,
+            "tribunal": payload["tribunal"],
+            "juiz": payload["juiz"],
+            "orgao": {"codigo": orgao_cod, "nome": orgao_nome},
+            "decisoes": payload["decisoes"],
+            "stats": payload["stats"],
+        }
+    except Exception as e:
+        return {"sucesso": False, "msg": str(e)}
+
 def clonar_perfil_juiz(
     numero_processo_ref: str,
     *,

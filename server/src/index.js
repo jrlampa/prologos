@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 import cors from "cors";
@@ -48,6 +49,35 @@ const app = express();
 app.disable("x-powered-by");
 if (process.env.TRUST_PROXY === "true") app.set("trust proxy", 1);
 
+// Observabilidade mínima: requestId + logs estruturados (JSON) sem dependências.
+app.use((req, res, next) => {
+  const requestId = (req.headers["x-request-id"] || "").toString().trim() || crypto.randomUUID();
+  req.requestId = requestId;
+  res.setHeader("x-request-id", requestId);
+
+  const start = process.hrtime.bigint();
+  res.on("finish", () => {
+    const end = process.hrtime.bigint();
+    const durationMs = Number(end - start) / 1e6;
+    const level =
+      res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info";
+    // Não loga body/headers sensíveis.
+    console.log(
+      JSON.stringify({
+        level,
+        msg: "http_request",
+        requestId,
+        method: req.method,
+        path: req.originalUrl,
+        status: res.statusCode,
+        durationMs: Math.round(durationMs * 1000) / 1000,
+      }),
+    );
+  });
+
+  next();
+});
+
 app.use(
   helmet({
     // Se estivermos servindo SPA também, um CSP default tende a quebrar.
@@ -95,9 +125,22 @@ const aiLimiter = rateLimit({
   },
 });
 
+const cloneLimiter = rateLimit({
+  windowMs: Number(process.env.CLONE_RATE_LIMIT_WINDOW_MS || 60 * 60 * 1000),
+  max: Number(process.env.CLONE_RATE_LIMIT_MAX || 20),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    res.status(429).json({
+      detail: "Muitas requisições de clonagem. Aguarde e tente novamente mais tarde.",
+    });
+  },
+});
+
 app.use("/api", apiLimiter);
 app.use("/api/analise", aiLimiter);
 app.use("/api/juiz/:juizId/dossie", aiLimiter);
+app.use("/api/clonar-juiz", cloneLimiter);
 
 const uploadPdf = multer({
   storage: multer.memoryStorage(),
@@ -143,7 +186,7 @@ app.use(
     fastapiBaseUrl: FASTAPI_BASE_URL,
   }),
 );
-app.use("/api", createJobsRouter({ fastapiBaseUrl: FASTAPI_BASE_URL }));
+app.use("/api", createJobsRouter({ db, fastapiBaseUrl: FASTAPI_BASE_URL }));
 app.use("/api", createMlRouter());
 
 // SPA fallback (apenas se o build existir e não for rota /api)

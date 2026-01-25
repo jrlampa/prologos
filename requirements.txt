@@ -12,3 +12,5 @@ numpy>=1.27.0
 groq>=0.1.6
 pydantic>=2.2.0
 python-dotenv>=1.0.0
+redis
+rq

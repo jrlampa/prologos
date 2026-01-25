@@ -5,7 +5,8 @@ import LegalDisclaimer from './components/LegalDisclaimer';
 import TermsModal from './components/TermsModal';
 import { api } from './services/api';
 
-const TERMS_ACCEPTED_KEY = 'prologos_terms_accepted_v1';
+const TERMS_ACCEPTED_KEY = 'prologos_terms_acceptance_v1';
+const TERMS_VERSION = '2026-01-25';
 
 function App() {
     const [juizes, setJuizes] = useState([]);
@@ -24,8 +25,11 @@ function App() {
 
     useEffect(() => {
         try {
-            const stored = localStorage.getItem(TERMS_ACCEPTED_KEY);
-            setTermsAccepted(stored === 'true');
+            const raw = localStorage.getItem(TERMS_ACCEPTED_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            const ok = parsed?.accepted === true && parsed?.version === TERMS_VERSION;
+            setTermsAccepted(ok);
         } catch {
             // no-op (ex.: localStorage indisponível)
         }
@@ -67,7 +71,12 @@ function App() {
     const handleToggleTermsAccepted = useCallback((next) => {
         setTermsAccepted(!!next);
         try {
-            localStorage.setItem(TERMS_ACCEPTED_KEY, next ? 'true' : 'false');
+            const payload = {
+                accepted: !!next,
+                version: TERMS_VERSION,
+                acceptedAt: next ? new Date().toISOString() : null,
+            };
+            localStorage.setItem(TERMS_ACCEPTED_KEY, JSON.stringify(payload));
         } catch {
             // no-op
         }

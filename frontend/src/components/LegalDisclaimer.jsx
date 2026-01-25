@@ -6,10 +6,9 @@ export default function LegalDisclaimer({ accepted, onToggleAccepted, onOpenTerm
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <p className="text-sm text-amber-100">
-            <span className="font-bold">Aviso:</span> esta plataforma é{' '}
-            <span className="font-semibold">assistiva</span> e pode gerar
-            respostas imprecisas. Não substitui análise jurídica por profissional
-            habilitado.
+            <span className="font-bold">Aviso:</span> esta ferramenta fornece{' '}
+            <span className="font-semibold">análises estatísticas e probabilísticas</span>.{' '}
+            Não substitui o aconselhamento jurídico profissional nem garante resultados processuais.
           </p>
           <button
             type="button"

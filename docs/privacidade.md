@@ -44,10 +44,16 @@ As bases legais podem variar conforme o caso, incluindo:
 Podemos compartilhar dados:
 
 - com provedores de infraestrutura/serviços necessários ao funcionamento da Plataforma;
-- com serviços de processamento de linguagem/IA, quando acionados para gerar análises;
+- com serviços de processamento de linguagem/IA, quando acionados para gerar análises (por exemplo, provedores de LLM para “dossiê”/“parecer”, quando configurados);
 - mediante ordem legal, obrigação regulatória ou para proteção de direitos.
 
 Não vendemos dados pessoais.
+
+### 5.1. Provedores de IA/LLM (ex.: Groq)
+
+Quando você utiliza recursos que geram texto por IA (ex.: “dossiê” e/ou “parecer”), partes do conteúdo fornecido e/ou recuperado pela Plataforma (ex.: texto de petição, trechos de decisões, contexto informado) **podem ser enviados a um provedor externo** para processamento.
+
+Recomendação: **evite incluir dados pessoais sensíveis desnecessários** nos documentos e textos enviados.
 
 ## 6. Transferências internacionais
 
@@ -62,6 +68,15 @@ Retemos dados pelo tempo necessário para:
 - resguardar direitos e prevenir abuso.
 
 Quando possível, aplicamos descarte ou anonimização após o término da necessidade.
+
+### 7.1. Retenção técnica (estado atual do projeto)
+
+No estado atual:
+
+- **Uploads (PDFs)**: são processados **em memória** para gerar análises; não há persistência intencional do arquivo no disco pelo backend (salvo comportamento do ambiente de deploy/infra).
+- **Cache DataJud**: para reduzir carga e risco de bloqueio, pode existir um cache local em SQLite (`backend/datajud_cache.sqlite3`) com TTL configurável (padrão: 7 dias).
+- **Jobs de clonagem**: o status/resultado de jobs pode ficar armazenado no Redis por um período configurável (TTL), para permitir consulta de progresso e reprocessamento controlado.
+- **Logs**: podem conter metadados técnicos (ex.: tempos, rotas, códigos HTTP, requestId). Não devem incluir conteúdo integral de petições/decisões nem segredos.
 
 ## 8. Segurança da informação
 
@@ -83,7 +98,7 @@ Você pode solicitar, nos termos da LGPD:
 
 Para exercer direitos ou tirar dúvidas:
 
-- E-mail: `privacidade@exemplo.com`
+- Canal preferencial: [GitHub Issues](https://github.com/jrlampa/prologos/issues)
 
 ## 11. Alterações desta Política
 
