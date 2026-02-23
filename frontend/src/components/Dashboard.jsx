@@ -9,8 +9,10 @@ const Dashboard = ({ stats }) => {
             <div className="space-y-3">
                 <p><span className="font-semibold">Nome:</span> {stats.nome}</p>
                 <p><span className="font-semibold">Total de Decisões na Base:</span> {stats.total_decisoes}</p>
-                {/* Outras estatísticas podem ser adicionadas aqui */}
             </div>
+            {stats.total_decisoes === 0 && (
+                <p className="mt-4 text-yellow-400 text-sm">Nenhuma decisão coletada ainda. Clone um processo para popular a base.</p>
+            )}
         </div>
     );
 };

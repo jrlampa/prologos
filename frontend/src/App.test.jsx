@@ -43,6 +43,13 @@ describe('App', () => {
     });
   });
 
+  it('renders the ClonarJuiz section', async () => {
+    render(<App />);
+    expect(screen.getByText('🧬 Clonar Perfil de Juiz')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Nº do processo CNJ/)).toBeInTheDocument();
+    expect(screen.getByText('🔍 Clonar')).toBeInTheDocument();
+  });
+
   it('shows loading message and fetches stats when a juiz is selected', async () => {
     render(<App />);
     
@@ -61,6 +68,35 @@ describe('App', () => {
       // Assuming Dashboard and Simulador will be rendered.
       // We can check for a text that is unique to one of those components.
       // For now, let's just check that the loading message is gone.
+    });
+  });
+
+  it('calls clone endpoint and refreshes judges list on successful clone', async () => {
+    const clonedJuiz = { id: 3, nome: 'Juiz Clonado', vara: '1ª Vara Cível' };
+    axios.post = jest.fn().mockResolvedValueOnce({ data: clonedJuiz });
+    axios.get.mockImplementation((url) => {
+      if (url.endsWith('/juizes')) {
+        return Promise.resolve({ data: [...mockJuizes, { id: 3, nome: 'Juiz Clonado' }] });
+      }
+      return Promise.reject(new Error('not found'));
+    });
+
+    render(<App />);
+
+    fireEvent.change(screen.getByPlaceholderText(/Nº do processo CNJ/), {
+      target: { value: '1002345-88.2023.8.26.0100' },
+    });
+    fireEvent.click(screen.getByText('🔍 Clonar'));
+
+    await waitFor(() => {
+      expect(axios.post).toHaveBeenCalledWith(
+        expect.stringContaining('/clonar-juiz'),
+        { numero_processo: '1002345-88.2023.8.26.0100' }
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Juiz Clonado/)).toBeInTheDocument();
     });
   });
 });

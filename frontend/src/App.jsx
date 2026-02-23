@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import Dashboard from './components/Dashboard';
 import Simulador from './components/Simulador';
+import ClonarJuiz from './components/ClonarJuiz';
 
 const API_URL = 'http://127.0.0.1:8000/api';
 
@@ -11,9 +12,13 @@ function App() {
     const [juizStats, setJuizStats] = useState(null);
     const [loading, setLoading] = useState(false);
 
-    useEffect(() => {
+    const fetchJuizes = useCallback(() => {
         axios.get(`${API_URL}/juizes`).then(res => setJuizes(res.data));
     }, []);
+
+    useEffect(() => {
+        fetchJuizes();
+    }, [fetchJuizes]);
 
     useEffect(() => {
         if (selectedJuiz) {
@@ -24,6 +29,11 @@ function App() {
         }
     }, [selectedJuiz]);
 
+    const handleJuizClonado = (novoJuiz) => {
+        fetchJuizes();
+        setSelectedJuiz(String(novoJuiz.id));
+    };
+
     return (
         <div className="bg-gray-900 text-white min-h-screen p-8">
             <header className="text-center mb-10">
@@ -32,6 +42,8 @@ function App() {
             </header>
 
             <div className="max-w-4xl mx-auto">
+                <ClonarJuiz onJuizClonado={handleJuizClonado} />
+
                 <div className="bg-gray-800 p-4 rounded-lg mb-6">
                     <label htmlFor="juiz-select" className="block mb-2 text-sm font-medium">Selecione o Juiz para Análise:</label>
                     <select 
