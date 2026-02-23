@@ -56,13 +56,38 @@ def clonar_juiz_endpoint(request: ClonarRequest, db: Session = Depends(get_db)):
 def listar_juizes(db: Session = Depends(get_db)):
     return db.query(Juiz).all()
 
+def _calcular_distribuicao_temas(decisoes):
+    distribuicao: dict = {}
+    for d in decisoes:
+        tema = d.tema or "Geral"
+        distribuicao[tema] = distribuicao.get(tema, 0) + 1
+    return distribuicao
+
 @app.get("/api/juiz/{juiz_id}/stats")
 
 def get_juiz_stats(juiz_id: int, db: Session = Depends(get_db)):
     juiz = db.query(Juiz).filter(Juiz.id == juiz_id).first()
     if not juiz: raise HTTPException(404, "Juiz não encontrado")
     total_decisoes = len(juiz.decisoes)
-    return {"nome": juiz.nome, "total_decisoes": total_decisoes}
+    distribuicao_temas = _calcular_distribuicao_temas(juiz.decisoes)
+    distribuicao_resultados: dict = {}
+    for d in juiz.decisoes:
+        resultado = d.resultado or "Indefinido"
+        distribuicao_resultados[resultado] = distribuicao_resultados.get(resultado, 0) + 1
+    return {
+        "nome": juiz.nome,
+        "vara": juiz.vara,
+        "total_decisoes": total_decisoes,
+        "distribuicao_temas": distribuicao_temas,
+        "distribuicao_resultados": distribuicao_resultados,
+    }
+
+@app.get("/api/dashboard/{juiz_id}")
+
+def get_dashboard(juiz_id: int, db: Session = Depends(get_db)):
+    juiz = db.query(Juiz).filter(Juiz.id == juiz_id).first()
+    if not juiz: raise HTTPException(404, "Juiz não encontrado")
+    return {"nome": juiz.nome, "distribuicao_temas": _calcular_distribuicao_temas(juiz.decisoes)}
 
 @app.post("/api/analise/peticao")
 async def analisar_peticao(juiz_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
