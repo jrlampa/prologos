@@ -7,9 +7,11 @@ const Simulador = ({ juizId }) => {
     const [file, setFile] = useState(null);
     const [analise, setAnalise] = useState('');
     const [loading, setLoading] = useState(false);
+    const [erro, setErro] = useState('');
 
     const handleFileChange = (e) => {
         setFile(e.target.files[0]);
+        setErro('');
     };
 
     const handleAnalisar = () => {
@@ -19,13 +21,18 @@ const Simulador = ({ juizId }) => {
         formData.append('file', file);
 
         setLoading(true);
+        setErro('');
+        setAnalise('');
         axios.post(`${API_URL}/analise/peticao?juiz_id=${juizId}`, formData, {
             headers: {
                 'Content-Type': 'multipart/form-data'
             }
         })
         .then(res => setAnalise(res.data.parecer))
-        .catch(err => console.error(err))
+        .catch(err => {
+            const detail = err.response?.data?.detail;
+            setErro(detail || 'Erro ao processar a petição. Tente novamente.');
+        })
         .finally(() => setLoading(false));
     };
 
@@ -35,7 +42,7 @@ const Simulador = ({ juizId }) => {
             <div className="space-y-4">
                 <div>
                     <label htmlFor="peticao-upload" className="block mb-2 text-sm font-medium">Upload da Petição (PDF):</label>
-                    <input type="file" id="peticao-upload" onChange={handleFileChange} className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                    <input type="file" accept=".pdf" id="peticao-upload" onChange={handleFileChange} className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
                 </div>
                 <button 
                     onClick={handleAnalisar} 
@@ -44,6 +51,12 @@ const Simulador = ({ juizId }) => {
                 >
                     {loading ? 'Analisando...' : 'Analisar Afinidade'}
                 </button>
+
+                {erro && (
+                    <div className="mt-2 bg-red-800 text-red-200 p-3 rounded text-sm">
+                        {erro}
+                    </div>
+                )}
 
                 {analise && (
                     <div className="mt-4 bg-gray-700 p-4 rounded">

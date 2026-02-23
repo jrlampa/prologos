@@ -12,9 +12,11 @@ const mockJuizes = [
 ];
 
 const mockJuizStats = {
-  totalDecisoes: 100,
-  deferidos: 60,
-  indeferidos: 40,
+  nome: 'Juiz 1',
+  vara: '1ª Vara Cível',
+  total_decisoes: 100,
+  distribuicao_temas: { 'Responsabilidade Civil': 60, 'Contrato': 40 },
+  distribuicao_resultados: { 'Procedente': 70, 'Improcedente': 30 },
 };
 
 describe('App', () => {
