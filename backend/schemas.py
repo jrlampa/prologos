@@ -16,6 +16,10 @@ class JuizResponse(JuizBase):
         from_attributes = True
 
 
+# Alias usado nas rotas da API
+Juiz = JuizResponse
+
+
 # Schema base para Decisao
 class DecisaoBase(BaseModel):
     numero_processo: str
